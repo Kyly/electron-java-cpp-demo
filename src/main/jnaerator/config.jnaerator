@@ -1,0 +1,6 @@
+-library HelloWorld
+-libFile src/main/resources/cpp/cmake-build-default/libHelloWorld.dylib
+-package com.spark.helloNative
+-runtime JNA
+-Isrc/main/resources/cpp/
+src/main/resources/cpp/HelloWorld.hpp

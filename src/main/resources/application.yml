@@ -1,0 +1,15 @@
+server:
+  port: 8085
+
+endpoints:
+  shutdown:
+    enabled: true
+
+management:
+  security:
+    enabled: false
+
+jna:
+  library:
+    path: /Users/kvass/workspace/spark-electron-demo/src/main/resources/cpp/cmake-build-default/
+  debug_load: 'true'

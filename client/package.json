@@ -1,0 +1,13 @@
+{
+  "name": "spark-electron-demo-client",
+  "version": "1.0.0",
+  "description": "Demo of some possible features for Spark",
+  "main": "main.js",
+  "license": "MIT",
+  "scripts": {
+    "start": "./node_modules/.bin/electron ."
+  },
+  "dependencies": {
+    "electron": "^1.6.2"
+  }
+}

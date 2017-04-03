@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Electron Java C++ Demo</title>
+
+    <link rel="stylesheet"
+          href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-alpha.6/css/bootstrap.min.css"
+          integrity="sha384-rwoIResjU2yc3z8GV/NPeZWAv56rSmLldC3R/AZzGRnGxQQKnKkoFVhFQhNUwEyJ"
+          crossorigin="anonymous">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="container">
+    <div class="header clearfix">
+        <nav>
+            <ul class="nav nav-pills float-right">
+                <li class="nav-item">
+                    <a class="nav-link" id="startup-btn" href="#">Start Service</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" id="shutdown-btn" href="#">Stop Service</a>
+                </li>
+            </ul>
+        </nav>
+        <h3 class="text-muted">Electron Java C++ Demo</h3>
+    </div>
+
+    <div class="jumbotron">
+        <h1 class="display-3">App Info</h1>
+        <ul class="list-unstyled" id="environment-info">
+        </ul>
+    </div>
+
+    <div class="row marketing">
+        <aside>
+            <h4 id="greeting"></h4>
+            <form>
+                <div class="form-group">
+                    <label for="name">What is your name?</label>
+                    <input type="text" id="name" class="form-control" placeholder="Your name here...">
+                </div>
+                <button id="send" class="btn btn-default" type="submit">Send</button>
+            </form>
+        </aside>
+    </div>
+
+    <footer class="footer">
+    </footer>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/sockjs/1/sockjs.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+<script src="https://cdn.jsdelivr.net/lodash/4.17.4/lodash.min.js"></script>
+
+<script>
+    const { ipcRenderer } = require('electron');
+    const connectOnce = _.once(connect);
+    const form = document.getElementsByTagName('form')[ 0 ];
+    const send = document.getElementById('send');
+    const startButton = document.getElementById('startup-btn');
+    const shutdownButton = document.getElementById('shutdown-btn');
+
+    send.addEventListener('click', sendName);
+    startButton.addEventListener('click', startService);
+    shutdownButton.addEventListener('click', shutdownService);
+    form.addEventListener('submit', (evt) => evt.preventDefault());
+
+    let stompClient;
+
+    const intervalId = setInterval(() => {
+        fetch('http://localhost:8085/health')
+            .then(function (response) {
+                if (response.status) {
+                    connectOnce();
+                    clearInterval(intervalId);
+                    toggleStartStopButtons(true);
+                    getEnvInfo();
+                    return response.json();
+                }
+            }).then(console.log);
+    }, 5000);
+
+    function getEnvInfo() {
+        fetch('http://localhost:8085/env')
+            .then(function (response) {
+                if (response.status) {
+                    return response.json();
+                }
+            }).then(writeEnvInfo);
+    }
+
+    function writeEnvInfo(env) {
+        const envInfoList = document.getElementById('environment-info');
+
+        const info = {
+            node: process.versions.node,
+            chrome: process.versions.chrome,
+            electron: process.versions.electron,
+            java: env.systemProperties[ 'java.runtime.version' ],
+            os: env.systemProperties[ 'os.name' ],
+            osVersion: env.systemProperties[ 'os.version' ]
+        };
+
+        _(info).forEach((value, key) => {
+            const elem = document.createElement('li');
+            elem.innerHTML = `${_.upperFirst(key)}: ${value}`;
+            envInfoList.appendChild(elem);
+        });
+    }
+
+    function shutdownService() {
+        fetch('http://localhost:8085/shutdown', { method: 'POST' })
+            .then(function (response) {
+                if (response.status) {
+                    disconnect();
+                    toggleStartStopButtons(false);
+                    return response.json();
+                }
+            }).then((response) => console.log(response.message));
+    }
+
+    function startService() {
+        fetch('http://localhost:8085/health')
+            .then(
+                () => console.log('Service must be shutdown before you can restart'),
+                () => ipcRenderer.sendSync('start-service')
+            );
+    }
+
+    function toggleStartStopButtons(isStart) {
+
+        if (isStart) {
+            startButton.classList.add('active');
+            startButton.classList.add('disabled');
+
+            shutdownButton.classList.remove('active');
+            shutdownButton.classList.remove('disabled');
+
+            startButton.innerHTML = 'Service up';
+            shutdownButton.innerHTML = 'Stop Service';
+            return;
+        }
+
+        shutdownButton.classList.add('active');
+        shutdownButton.classList.add('disabled');
+
+        startButton.classList.remove('active');
+        startButton.classList.remove('disabled');
+
+        startButton.innerHTML = 'Start Service';
+        shutdownButton.innerHTML = 'Service down';
+    }
+
+    function connect() {
+
+        const socket = new SockJS('http://localhost:8085/spark-plug');
+        stompClient = Stomp.over(socket);
+
+        stompClient.heartbeat.outgoing = 10000;
+        stompClient.heartbeat.incoming = 5000;
+
+        stompClient.debug = console.log;
+
+        stompClient.connect({}, (frame) => {
+            console.log('Connected: ' + frame);
+            subscribe();
+        }, (error) => {
+            // display the error's message header:
+            console.log(JSON.stringify(error));
+        });
+    }
+
+    function subscribe() {
+        stompClient.subscribe('/topic/greeting', (greeting) => {
+            showGreeting(JSON.parse(greeting.body).result.greeting);
+        });
+    }
+
+    function disconnect() {
+        if (stompClient != null) {
+            stompClient.disconnect();
+        }
+        console.log('Websockets disconnected');
+    }
+
+    function sendName() {
+        const name = document.getElementById('name').value;
+        stompClient.send('/app/hello', {}, name);
+    }
+
+    function showGreeting(message) {
+        const greeting = document.getElementById('greeting');
+        greeting.textContent = message;
+    }
+
+</script>
+</body>
+</html>
